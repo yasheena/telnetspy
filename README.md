@@ -46,7 +46,9 @@ Replace "Serial" with "SERIAL" in your sketch. Now you can switch between serial
 To connect to the telnet server you have to:
  - establish the Wifi connection
  - execute "SerialAndTelnet.begin(WhatEverYouWant);"
+ 
 The order is not important.
+
 All you do with "Serial" you can also do with "SerialAndTelnet", but remember: Transfering data also via telnet will need more performance than the serial port only. So time critical things may be influenced. It is not possible to establish more than one telnet connection at the same time.
 
 ## License
