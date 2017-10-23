@@ -2,8 +2,9 @@ TelnetSpy	KEYWORD1
 
 SerialAndTelnet	KEYWORD1
 
-handle KEYWORD2
-setWelcomeMsg KEYWORD2
-setMinBlockSize KEYWORD2
-setCollectingTime KEYWORD2
-setMaxBlockSize KEYWORD2
+handle	KEYWORD2
+setWelcomeMsg	KEYWORD2
+setMinBlockSize	KEYWORD2
+setCollectingTime	KEYWORD2
+setMaxBlockSize	KEYWORD2
+setCaptureOsPrint	KEYWORD2
