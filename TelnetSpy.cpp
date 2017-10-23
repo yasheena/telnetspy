@@ -1,29 +1,70 @@
-/********************************/
-/*                              */
-/*  Project:    TelnetSpy       */
-/*  Version:    1.00            */
-/*  Date:       08.10.2017      */
-/*                              */
-/*  Author:     Wolfgang Mattis */
-/*  Email:      w@wm0.eu        */
-/*                              */
-/********************************/
+/*
+ * TELNET SERVER FOR ESP8266
+ * Cloning the serial port via Telnet.
+ *
+ * Written by Wolfgang Mattis (arduino@yasheena.de).
+ * Version 1.0 / October 23, 2017. 
+ * MIT license, all text above must be included in any redistribution.   
+ */
 
+#ifdef ESP8266
+  extern "C" {
+    #include "user_interface.h"
+  }
+#endif
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <RingBuf.h>
 #include "TelnetSpy.h"
 
-WiFiServer telnetServer(23);
+WiFiServer telnetServer(TELNETSPY_PORT);
 WiFiClient serverClient;
 RingBuf *telnetBuf = RingBuf_new(sizeof(char), TELNETSPY_BUFFER_LEN);
 
 TelnetSpy::TelnetSpy() {
   started = false;
   listening = false;
-  waitRef = 0xFFFFFFFF;
+  firstMainLoop = true;
+  waitRef = 0xFFFFFFFF; 
+  welcomeMsg = strdup(TELNETSPY_WELCOME_MSG);
+  minBlockSize = TELNETSPY_MIN_BLOCK_SIZE;
+  collectingTime = TELNETSPY_COLLECTING_TIME;
+  maxBlockSize = TELNETSPY_MAX_BLOCK_SIZE;
+  captureOsPrint = TELNETSPY_CAPTURE_OS_PRINT;
+  if (captureOsPrint) {
+    setCaptureOsPrint(true);
+  }
+}
+
+static void TelnetSpy_putc(char c) {
+  SerialAndTelnet.write(c);
+}
+
+void TelnetSpy::setWelcomeMsg(char* msg) {
+  free(welcomeMsg);
+  welcomeMsg = strdup(msg);
+}
+
+void TelnetSpy::setMinBlockSize(uint16_t minSize) {
+  minBlockSize = max(1, minSize);
 }
     
+void TelnetSpy::setCollectingTime(uint16_t colTime) {
+  collectingTime = colTime;
+}
+
+void TelnetSpy::setMaxBlockSize(uint16_t maxSize) {
+  maxBlockSize = max(16, maxSize);
+}
+
+void TelnetSpy::setCaptureOsPrint(bool capture) {
+  captureOsPrint = capture;
+  system_set_os_print(captureOsPrint);
+  if (captureOsPrint) {
+    os_install_putc1((void*) TelnetSpy_putc);  // Set system printing (os_printf) to TelnetSpy
+  }
+}
+
 size_t TelnetSpy::write (uint8_t data) {
   if (telnetBuf) {
     if (telnetBuf->isFull(telnetBuf)) {
@@ -147,8 +188,8 @@ int TelnetSpy::baudRate(void) {
 
 void TelnetSpy::sendBlock() {
   unsigned int len = telnetBuf->numElements(telnetBuf);
-  if (len > TELNETSPY_MAX_BLOCK_SIZE) {
-    len = TELNETSPY_MAX_BLOCK_SIZE;
+  if (len > maxBlockSize) {
+    len = maxBlockSize;
   }
   uint8_t buf[len];
   for (int i = 0; i < len; i++) {
@@ -179,6 +220,13 @@ int TelnetSpy::telnetAvailable() {
 }
 
 void TelnetSpy::handle() {
+  if (firstMainLoop) {
+    firstMainLoop = false;
+    // Between setup() and loop() the configuration for os_print may be changed so it must be renewed 
+    if (captureOsPrint) {
+      setCaptureOsPrint(true);
+    }
+  }
   if (!listening) {
     if (started) {
       if (WiFi.status() == WL_CONNECTED) {
@@ -199,18 +247,20 @@ void TelnetSpy::handle() {
       telnetServer.available().stop();
     } else {
       serverClient = telnetServer.available();
-      serverClient.write("Connection established via TelnetSpy.\n");
-      serverClient.flush();
+      if (strlen(welcomeMsg) > 0) {
+      	serverClient.write((const uint8_t*)welcomeMsg, strlen(welcomeMsg));
+      	serverClient.flush();
+      }
     }
   }
   if (serverClient && serverClient.connected() && !telnetBuf->isEmpty(telnetBuf)) {
     unsigned int len = telnetBuf->numElements(telnetBuf);
-    if (len >= TELNETSPY_MIN_BLOCK_SIZE) {
+    if (len >= minBlockSize) {
       sendBlock();
     } else {
       unsigned long m = millis() & 0x7FFFFFF;
       if (waitRef == 0xFFFFFFFF) {
-        waitRef = m + TELNETSPY_COLLECTING_TIME;
+        waitRef = m + collectingTime;
         if (waitRef > 0x7FFFFFFF) {
           waitRef -= 0x80000000;
         }

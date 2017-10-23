@@ -27,8 +27,9 @@ void waitForDisconnection() {
 }
 
 void setup() {
+  SerialAndTelnet.setWelcomeMsg("Welcome to the TelnetSpy example\n\n");
   SERIAL.begin(74880);
-  delay(100);   // Wait for serial port
+  delay(100); // Wait for serial port
   SERIAL.print("\n\nConnecting to WiFi ");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -65,8 +66,8 @@ void setup() {
 }
 
 void loop() {
-  ArduinoOTA.handle();
   SerialAndTelnet.handle();
+  ArduinoOTA.handle();
 
   if (SERIAL.available() > 0) {
     char c = SERIAL.read();
