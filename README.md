@@ -20,8 +20,7 @@ SerialAndTelnet.handle();
 
 Install the "RingBuf" library (via library manager of Arduino IDE).
 
-
-Use the following functions to modify behavior:
+### Use the following functions to modify behavior
 
 Collect <minSize> characters before sending a telnet block: 
 ```
