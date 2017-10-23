@@ -26,11 +26,11 @@ Collect \<minSize\> characters before sending a telnet block:
 ```
 SerialAndTelnet.setMinBlockSize(uint16_t minSize);
 ```
-Wait <colTime> ms before sending a telnet block if its size is less than <minSize> (defined by setMinBlockSize):
+Wait \<colTime\> ms before sending a telnet block if its size is less than \<minSize\> (defined by setMinBlockSize):
 ```
 SerialAndTelnet.setCollectingTime(uint16_t colTime);
 ```
-Send telnet data in chunks of maximum <maxSize>:
+Send telnet data in chunks of maximum \<maxSize\>:
 ```
 SerialAndTelnet.setMaxBlockSize(uint16_t maxSize);
 ```
