@@ -22,7 +22,7 @@ Install the "RingBuf" library (via library manager of Arduino IDE).
 
 ### Use the following functions to modify behavior
 
-Collect <minSize> characters before sending a telnet block: 
+Collect \<minSize\> characters before sending a telnet block: 
 ```
 SerialAndTelnet.setMinBlockSize(uint16_t minSize);
 ```
