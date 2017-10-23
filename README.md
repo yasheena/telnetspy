@@ -20,25 +20,26 @@ SerialAndTelnet.handle();
 
 Install the "RingBuf" library (via library manager of Arduino IDE).
 
+
 Use the following functions to modify behavior:
 
-  Collect <minSize> characters before sending a telnet block: 
+Collect <minSize> characters before sending a telnet block: 
 ```
 SerialAndTelnet.setMinBlockSize(uint16_t minSize);
 ```
-  Wait <colTime> ms before sending a telnet block if its size is less than <minSize> (defined by setMinBlockSize):
+Wait <colTime> ms before sending a telnet block if its size is less than <minSize> (defined by setMinBlockSize):
 ```
 SerialAndTelnet.setCollectingTime(uint16_t colTime);
 ```
-  Send telnet data in chunks of maximum <maxSize>:
+Send telnet data in chunks of maximum <maxSize>:
 ```
 SerialAndTelnet.setMaxBlockSize(uint16_t maxSize);
 ```
-  Change the message which will be send to the telnet client after a session is established:
+Change the message which will be send to the telnet client after a session is established:
 ```
 SerialAndTelnet.setWelcomeMsg(char* msg);    
 ```
-  Enable / disable capturing of os_print calls:
+Enable / disable capturing of os_print calls:
 ```
 SerialAndTelnet.setCaptureOsPrint(bool capture);
 ```
