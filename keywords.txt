@@ -1,10 +1,18 @@
 TelnetSpy	KEYWORD1
 
-SerialAndTelnet	KEYWORD1
-
 handle	KEYWORD2
+setPort	KEYWORD2
 setWelcomeMsg	KEYWORD2
+setRejectMsg	KEYWORD2
 setMinBlockSize	KEYWORD2
 setCollectingTime	KEYWORD2
 setMaxBlockSize	KEYWORD2
-setCaptureOsPrint	KEYWORD2
+setBufferSize	KEYWORD2
+getBufferSize	KEYWORD2
+setStoreOffline	KEYWORD2
+getStoreOffline	KEYWORD2
+setPingTime	KEYWORD2
+setSerial	KEYWORD2
+isClientConnected	KEYWORD2
+setCallbackOnConnect	KEYWORD2
+setCallbackOnDisconnect	KEYWORD2

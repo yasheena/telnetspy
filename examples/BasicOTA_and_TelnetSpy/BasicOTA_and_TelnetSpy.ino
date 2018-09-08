@@ -7,6 +7,8 @@
 const char* ssid = ".....";
 const char* password = ".....";
 
+TelnetSpy SerialAndTelnet;
+
 //#define SERIAL  Serial
 #define SERIAL  SerialAndTelnet
 
@@ -26,10 +28,21 @@ void waitForDisconnection() {
   SERIAL.println(" Disconnected!");
 }
 
+void telnetConnected() {
+  SERIAL.println("Telnet connection established.");
+}
+
+void telnetDisconnected() {
+  SERIAL.println("Telnet connection closed.");
+}
+
 void setup() {
   SerialAndTelnet.setWelcomeMsg("Welcome to the TelnetSpy example\n\n");
+  SerialAndTelnet.setCallbackOnConnect(telnetConnected);
+  SerialAndTelnet.setCallbackOnDisconnect(telnetDisconnected);
   SERIAL.begin(74880);
   delay(100); // Wait for serial port
+  SERIAL.setDebugOutput(false);
   SERIAL.print("\n\nConnecting to WiFi ");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
