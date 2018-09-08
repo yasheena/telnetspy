@@ -26,37 +26,37 @@ LOG.handle();
 
 ### Use the following functions of the TelnetSpy object to modify behavior
 
-Change the port number of this telnet server. If a client is already connected it will be disconnected.
+Change the port number of this telnet server. If a client is already connected it will be disconnected.\
 Default: 23
 ```
 void setPort(uint16_t portToUse);
 ```
-Change the message which will be send to the telnet client after a session is established.
+Change the message which will be send to the telnet client after a session is established.\
 Default: "Connection established via TelnetSpy.\n"
 ```
 void setWelcomeMsg(char* msg);    
 ```
-Change the message which will be send to the telnet client if another session is already established.
+Change the message which will be send to the telnet client if another session is already established.\
 Default: "TelnetSpy: Only one connection possible.\n"
 ```
 void setRejectMsg(char* msg);    
 ```
-Change the amount of characters to collect before sending a telnet block.
+Change the amount of characters to collect before sending a telnet block.\
 Default: 64 
 ```
 void setMinBlockSize(uint16_t minSize);
 ```
-Change the time (in ms) to wait before sending a telnet block if its size is less than \<minSize\> (defined by setMinBlockSize).
+Change the time (in ms) to wait before sending a telnet block if its size is less than \<minSize\> (defined by setMinBlockSize).\
 Default: 100
 ```
 void setCollectingTime(uint16_t colTime);
 ```
-Change the maximum size of the telnet packets to send.
+Change the maximum size of the telnet packets to send.\
 Default: 512
 ```
 void setMaxBlockSize(uint16_t maxSize);
 ```
-Change the size of the ring buffer. Set it to 0 to disable buffering. Changing size tries to preserve the already collected data. If the new buffer size is too small the youngest data will be preserved only. Returns false if the requested buffer size cannot be set.
+Change the size of the ring buffer. Set it to 0 to disable buffering. Changing size tries to preserve the already collected data. If the new buffer size is too small the youngest data will be preserved only. Returns false if the requested buffer size cannot be set.\
 Default: 3000
 ```
 bool setBufferSize(uint16_t newSize);
@@ -65,7 +65,7 @@ This function returns the actual size of the ring buffer.
 ```
 uint16_t getBufferSize();
 ```
-Enable / disable storing new data in the ring buffer if no telnet connection is established. This function allows you to store important data only. You can do this by disabling "storeOffline" for sending less important data.
+Enable / disable storing new data in the ring buffer if no telnet connection is established. This function allows you to store important data only. You can do this by disabling "storeOffline" for sending less important data.\
 Default: true
 ```
 void setStoreOffline(bool store);
@@ -74,12 +74,12 @@ Get actual state of storing data when offline.
 ```
 bool getStoreOffline();
 ```
-If no data is sent via TelnetSpy the detection of a disconnected client has a long timeout. Use setPingTime to define the time (in ms) without traffic after which a ping (chr(0)) is sent to the telnet client to detect a disconnect earlier. Use 0 as parameter to disable pings.
+If no data is sent via TelnetSpy the detection of a disconnected client has a long timeout. Use setPingTime to define the time (in ms) without traffic after which a ping (chr(0)) is sent to the telnet client to detect a disconnect earlier. Use 0 as parameter to disable pings.\
 Default: 1500  
 ```
 void setPingTime(uint16_t pngTime);
 ```
-Set the serial port you want to use with this object (especially for ESP32) or NULL if no serial port should be used (telnet only).
+Set the serial port you want to use with this object (especially for ESP32) or NULL if no serial port should be used (telnet only).\
 Default: Serial
 ```
 void setSerial(HardwareSerial* usedSerial);
@@ -88,12 +88,12 @@ This function returns true, if a telnet client is connected.
 ```
 bool isClientConnected();
 ```
-This function installs a callback function which will be called on every telnet connect of this object (except rejected connect tries). Use NULL to remove the callback.
+This function installs a callback function which will be called on every telnet connect of this object (except rejected connect tries). Use NULL to remove the callback.\
 Default: NULL
 ```
 void setCallbackOnConnect(void (*callback)());
 ```
-This function installs a callback function which will be called on every telnet disconnect of this object (except rejected connect tries). Use NULL to remove the callback.
+This function installs a callback function which will be called on every telnet disconnect of this object (except rejected connect tries). Use NULL to remove the callback.\
 Default: NULL
 ```
 void setCallbackOnDisconnect(void (*callback)());
