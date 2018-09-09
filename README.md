@@ -103,7 +103,8 @@ void setCallbackOnDisconnect(void (*callback)());
 
 Add the following lines to your sketch:
 ```
-#define SERIAL TelnetSpy
+TelnetSpy SerialAndTelnet;
+#define SERIAL SerialAndTelnet
 //#define SERIAL Serial
 ```
 Replace "Serial" with "SERIAL" in your sketch. Now you can switch between serial only and serial with telnet by changing the comments of the defines only.
@@ -112,7 +113,7 @@ Replace "Serial" with "SERIAL" in your sketch. Now you can switch between serial
 
 To connect to the telnet server you have to:
  - establish the Wifi connection
- - execute "TelnetSpy.begin(WhatEverYouWant);"
+ - execute "SerialAndTelnet.begin(WhatEverYouWant);"
  
 The order is not important.
 
