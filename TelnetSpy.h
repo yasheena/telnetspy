@@ -158,13 +158,23 @@
 #define TELNETSPY_PING_TIME 1500
 #define TELNETSPY_PORT 23
 #define TELNETSPY_CAPTURE_OS_PRINT true
-#define TELNETSPY_WELCOME_MSG "Connection established via TelnetSpy.\n"
-#define TELNETSPY_REJECT_MSG "TelnetSpy: Only one connection possible.\n"
+#define TELNETSPY_WELCOME_MSG "Connection established via TelnetSpy.\r\n"
+#define TELNETSPY_REJECT_MSG "TelnetSpy: Only one connection possible.\r\n"
+
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
+// empty defines, so on ESP8266 nothing will be changed
+#define CRITCAL_SECTION_MUTEX
+#define CRITCAL_SECTION_START
+#define CRITCAL_SECTION_END
 #else // ESP32
 #include <WiFi.h>
+// add spinlock for ESP32
+#define CRITCAL_SECTION_MUTEX portMUX_TYPE AtomicMutex = portMUX_INITIALIZER_UNLOCKED;
+// Non-static Data Member Initializers, see: https://web.archive.org/web/20160316174223/https://blogs.oracle.com/pcarlini/entry/c_11_tidbits_non_static
+#define CRITCAL_SECTION_START portENTER_CRITICAL(&AtomicMutex);
+#define CRITCAL_SECTION_END portEXIT_CRITICAL(&AtomicMutex);
 #endif
 #include <WiFiClient.h>
 
@@ -222,6 +232,7 @@ class TelnetSpy : public Stream {
 		uint32_t baudRate(void);
 
 	protected:
+		CRITCAL_SECTION_MUTEX
 		void sendBlock(void);
 		void addTelnetBuf(char c);
 		char pullTelnetBuf();
