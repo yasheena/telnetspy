@@ -3,7 +3,7 @@
  * Cloning the serial port via Telnet.
  *
  * Written by Wolfgang Mattis (arduino@yasheena.de).
- * Version 1.1 / September 7, 2018. 
+ * Version 1.2 / June 18, 2022. 
  * MIT license, all text above must be included in any redistribution.   
  */
 
