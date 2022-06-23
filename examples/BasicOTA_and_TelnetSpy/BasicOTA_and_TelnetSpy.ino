@@ -1,11 +1,16 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
-#include <WiFiUdp.h>
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+  #include <ESP8266mDNS.h>
+  #include <WiFiUdp.h>
+#else // ESP32
+  #include <WiFi.h>
+  #include <ESPmDNS.h>
+#endif
 #include <ArduinoOTA.h>
 #include <TelnetSpy.h>
 
-const char* ssid = ".....";
-const char* password = ".....";
+const char* ssid = "yourSSID";
+const char* password = "yourPassword";
 
 TelnetSpy SerialAndTelnet;
 
@@ -36,18 +41,23 @@ void telnetDisconnected() {
   SERIAL.println("Telnet connection closed.");
 }
 
+void disconnectClientWrapper() {
+  SerialAndTelnet.disconnectClient();
+}
+
 void setup() {
-  SerialAndTelnet.setWelcomeMsg("Welcome to the TelnetSpy example\n\n");
+  SerialAndTelnet.setWelcomeMsg("Welcome to the TelnetSpy example\r\n\n");
   SerialAndTelnet.setCallbackOnConnect(telnetConnected);
   SerialAndTelnet.setCallbackOnDisconnect(telnetDisconnected);
-  SERIAL.begin(74880);
+  SerialAndTelnet.setFilter(char(1), "\r\nNVT command: AO\r\n", disconnectClientWrapper);
+  SERIAL.begin(115200);
   delay(100); // Wait for serial port
   SERIAL.setDebugOutput(false);
-  SERIAL.print("\n\nConnecting to WiFi ");
+  SERIAL.print("\r\n\nConnecting to WiFi ");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   waitForConnection();
-    
+
   // During updates "over the air" the telnet session will be closed.
   // So the operations of ArduinoOTA cannot be seen via telnet.
   // So we only use the standard "Serial" for logging.
@@ -55,7 +65,7 @@ void setup() {
     Serial.println("Start");
   });
   ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
+    Serial.println(" \r\nEnd");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
@@ -74,8 +84,12 @@ void setup() {
   SERIAL.print("IP address: ");
   SERIAL.println(WiFi.localIP());
   
-  SERIAL.println("\nType 'C' for WiFi connect.\nType 'D' for WiFi disconnect.\nType 'R' for WiFi reconnect.");
-  SERIAL.println("All other chars will be echoed. Play around...\n");
+  SERIAL.println("\r\nType 'C' for WiFi connect.\r\nType 'D' for WiFi disconnect.\r\nType 'R' for WiFi reconnect.");
+  SERIAL.println("Type 'X' or Ctrl-A for closing telnet session.\r\n");
+  SERIAL.println("All other chars will be echoed. Play around...\r\n");
+  SERIAL.println("The following 'Special Commands' (telnet NVT protocol) are supported:");
+  SERIAL.println("  - Abort Output (AO) => closing telnet session.");
+  SERIAL.println("  - Interrupt Process (IP) => restart the ESP.\r\n");
 }
 
 void loop() {
@@ -88,21 +102,27 @@ void loop() {
       case '\r':
         SERIAL.println();
         break;
+      case '\n':
+        break;
       case 'C':
-        SERIAL.print("\nConnecting ");
+        SERIAL.print("\r\nConnecting ");
         WiFi.begin(ssid, password);
         waitForConnection();
         break;
       case 'D':
-        SERIAL.print("\nDisconnecting ...");
+        SERIAL.print("\r\nDisconnecting ...");
         WiFi.disconnect();
         waitForDisconnection();
         break;
       case 'R':
-        SERIAL.print("\nReconnecting ");
+        SERIAL.print("\r\nReconnecting ");
         WiFi.reconnect();
         waitForDisconnection();
         waitForConnection();
+        break;
+      case 'X':
+        SERIAL.println("\r\nClosing telnet session...");
+        SERIAL.disconnectClient();
         break;
       default:
         SERIAL.print(c);
