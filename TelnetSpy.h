@@ -2,15 +2,15 @@
  * TELNET SERVER FOR ESP8266 / ESP32
  * Cloning the serial port via Telnet.
  *
- * Written by Wolfgang Mattis (arduino@yasheena.de).
- * Version 1.1 / September 7, 2018. 
+ * Written by Wolfgang Mattis (arduino@wm0.eu).
+ * Version 1.2 / June 23, 2022.
  * MIT license, all text above must be included in any redistribution.   
  */
 
 /*
  * DESCRIPTION
  *
- * This module allows you "Debugging over the air". So if you already use 
+ * This module allows you "Debugging over the air". So if you already use
  * ArduinoOTA this is a helpful extension for wireless development. Use 
  * "TelnetSpy" instead of "Serial" to send data to the serial port and a copy
  * to a telnet connection. There is a circular buffer which allows to store the
@@ -66,23 +66,24 @@
  * Default: 512
  *		void setMaxBlockSize(uint16_t maxSize);
  *
- * Change the size of the ring buffer. Set it to 0 to disable buffering.
+ * Change the size of the transmit buffer. Set it to 0 to disable buffering.
  * Changing size tries to preserve the already collected data. If the new
  * buffer size is too small the youngest data will be preserved only. Returns
  * false if the requested buffer size cannot be set.
  * Default: 3000
  *		bool setBufferSize(uint16_t newSize);
  *
- * This function returns the actual size of the ring buffer.
+ * This function returns the actual size of the transmit buffer.
  *		uint16_t getBufferSize();
  *
- * Enable / disable storing new data in the ring buffer if no telnet connection
- * is established. This function allows you to store important data only. You
- * can do this by disabling "storeOffline" for sending less important data.
+ * Enable / disable storing new data in the transmit buffer if no telnet
+ * connection is established. This function allows you to store important data
+ * only. You can do this by disabling "storeOffline" for sending less important
+ * data.
  * Default: true
  *		void setStoreOffline(bool store);
  *
- * Get actual state of storing data when offline.
+ * Get actual state of storing data in the transmit buffer when offline.
  *		bool getStoreOffline();
  *
  * If no data is sent via TelnetSpy the detection of a disconnected client has
@@ -91,6 +92,22 @@
  * disconnect earlier. Use 0 as parameter to disable pings.
  * Default: 1500  
  *		void setPingTime(uint16_t pngTime);
+ *
+ * Change the size of the receive buffer. Set it to 0 to disable buffering in
+ * TelnetSpy (there is still a buffer in the underlayed WifiClient component).
+ * Returns false if the requested buffer size cannot be set.
+ * - If the receive buffer is used and it is full, additional received data
+ * will be lost. But all telnet NVT protocol data and the "filter character" is
+ * still handled (see "setFilter" and the NVT callbacks below).
+ * - If no receive buffer is used and the received characters are not retrieved
+ * by your app, the handling of the NVT protocol and the "filter character"
+ * will not work. If no receive buffer is used, you cannot receive the code
+ * 0xff (it will be lost because of a limitation of the WiFiAPI).
+ * Default: 64
+ *		bool setRecBufferSize(uint16_t newSize);
+ *
+ * This function returns the actual size of the receive buffer.
+ *		uint16_t getRecBufferSize();
  *
  * Set the serial port you want to use with this object (especially for ESP32)
  * or NULL if no serial port should be used (telnet only).
@@ -111,6 +128,75 @@
  * to remove the callback.
  * Default: NULL
  *		void setCallbackOnDisconnect(void (*callback)());
+ *
+ * This function disconnects an active client connection.
+ *      void disconnectClient();
+ *
+ * This function clears the transmit buffer of TelnetSpy, so all waiting data
+ * to send via a telnet connection will be discard.
+ *      void clearBuffer();
+ *
+ * This function allows to filter the character given by "ch" out of the
+ * receiving telnet data stream. If this character is detected, the following
+ * happens:
+ *  - If a "msg" is given (not NULL), this message will be send back via the
+ *      telnet connection.
+ *  - If the "callback" is set (not NULL), the given function is called.
+ *      void setFilter(char ch, char* msg, void (*callback());
+ *
+ * This function returns the actual filter character (0 => not set).
+ *      char getFilter();
+ *
+ * There is a rudimentary implementation of the telnet NVT protocol (see
+ * RFC854). You can use this functions i.e. in PuTTY via its menu "Special
+ * Command". The following functions can set callbacks to modify the behaviour.
+ *
+ * This function installs a callback function which will be called whenever the
+ * telnet command "BRK" (Break) is received. Use NULL to remove the callback.
+ * Default: NULL
+ *		void setCallbackOnNvtBRK(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "IP" (Interrupt Process) is received. Use NULL to remove
+ * the callback.
+ * Default: 1 (=> ESP.restart will be called)
+ *		void setCallbackOnNvtIP)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "AO" (Abort Output) is received. Use NULL to remove the
+ * callback.
+ * Default: 1 (=> disconnectClient of TelnerSpy will be called)
+ *		void setCallbackOnNvtAO)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "AYT" (Are you there) is received. Use NULL to remove the
+ * callback.
+ * Default: NULL
+ *		void setCallbackOnNvtAYT)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "EC" (Erase Character) is received. Use NULL to remove
+ * the callback.
+ * Default: NULL
+ *		void setCallbackOnNvtEC)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "EL" (Erase Line) is received. Use NULL to remove the
+ * callback.
+ * Default: NULL
+ *		void setCallbackOnNvtEL)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet command "GA" (Go Ahead) is received. Use NULL to remove the
+ * callback.
+ * Default: NULL
+ *		void setCallbackOnNvtGA)(void (*callback)());
+ *
+ * This function installs a callback function which will be called whenever
+ * the telnet commands "WILL", "WON'T", "DO" or "DON'T" are received. Use NULL
+ * to remove the callback.
+ * Default: NULL
+ *		void setCallbackOnNvtWWDD(void (*callback)(char command, char option));
  *
  * HINT
  *
@@ -160,7 +246,7 @@
 #define TELNETSPY_CAPTURE_OS_PRINT true
 #define TELNETSPY_WELCOME_MSG "Connection established via TelnetSpy.\r\n"
 #define TELNETSPY_REJECT_MSG "TelnetSpy: Only one connection possible.\r\n"
-
+#define TELNETSPY_REC_BUFFER_LEN 64
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -168,6 +254,10 @@
 #define CRITCAL_SECTION_MUTEX
 #define CRITCAL_SECTION_START
 #define CRITCAL_SECTION_END
+#define WIFI_MODE_NULL  NULL_MODE
+#define WIFI_MODE_STA   STATION_MODE
+#define WIFI_MODE_AP    SOFTAP_MODE
+#define WIFI_MODE_APSTA STATIONAP_MODE
 #else // ESP32
 #include <WiFi.h>
 // add spinlock for ESP32
@@ -182,7 +272,7 @@ class TelnetSpy : public Stream {
 	public:
 		TelnetSpy();
 		~TelnetSpy();
-		void handle(void);   
+		void handle(void);
 		void setPort(uint16_t portToUse);
 		void setWelcomeMsg(char* msg);
 		void setRejectMsg(char* msg);
@@ -194,10 +284,24 @@ class TelnetSpy : public Stream {
 		void setStoreOffline(bool store);
 		bool getStoreOffline();
 		void setPingTime(uint16_t pngTime);
+		bool setRecBufferSize(uint16_t newSize);
+		uint16_t getRecBufferSize();
 		void setSerial(HardwareSerial* usedSerial);
 		bool isClientConnected();
 		void setCallbackOnConnect(void (*callback)());
 		void setCallbackOnDisconnect(void (*callback)());
+        void disconnectClient();
+        void clearBuffer();
+        void setFilter(char ch, char* msg, void (*callback)());
+        char getFilter();
+		void setCallbackOnNvtBRK(void (*callback)());
+		void setCallbackOnNvtIP(void (*callback)());
+		void setCallbackOnNvtAO(void (*callback)());
+		void setCallbackOnNvtAYT(void (*callback)());
+		void setCallbackOnNvtEC(void (*callback)());
+		void setCallbackOnNvtEL(void (*callback)());
+		void setCallbackOnNvtGA(void (*callback)());
+		void setCallbackOnNvtWWDD(void (*callback)(char command, char option));
 		// Functions offered by HardwareSerial class:
 #ifdef ESP8266
 		void begin(unsigned long baud) { begin(baud, SERIAL_8N1, SERIAL_FULL, 1); }
@@ -238,6 +342,8 @@ class TelnetSpy : public Stream {
 		char pullTelnetBuf();
 		char peekTelnetBuf();
 		int telnetAvailable();
+        void writeRecBuf(char c);
+        void checkReceive();
 		WiFiServer* telnetServer;
 		WiFiClient client;
 		uint16_t port;
@@ -249,8 +355,12 @@ class TelnetSpy : public Stream {
 		unsigned long waitRef;
 		unsigned long pingRef;
 		uint16_t pingTime;
+        bool nvtDetected;
 		char* welcomeMsg;
 		char* rejectMsg;
+        char filterChar;
+        char* filterMsg;
+        void (*filterCallback)();
 		uint16_t minBlockSize;
 		uint16_t collectingTime;
 		uint16_t maxBlockSize;
@@ -260,9 +370,22 @@ class TelnetSpy : public Stream {
 		uint16_t bufUsed;
 		uint16_t bufRdIdx;
 		uint16_t bufWrIdx;
+		char* recBuf;
+		uint16_t recLen;
+		uint16_t recUsed;
+		uint16_t recRdIdx;
+		uint16_t recWrIdx;
 		bool connected;
 		void (*callbackConnect)();
 		void (*callbackDisconnect)();
+        void (*callbackNvtBRK)();
+        void (*callbackNvtIP)();
+        void (*callbackNvtAO)();
+        void (*callbackNvtAYT)();
+        void (*callbackNvtEC)();
+        void (*callbackNvtEL)();
+        void (*callbackNvtGA)();
+        void (*callbackNvtWWDD)(char command, char option);
 };
 
 #endif
