@@ -18,6 +18,8 @@
 - [Usage](#usage)
   - [General](#general)
   - [Functions](#functions)
+  - [Hint](#hint)
+  - [Important](#important)
 - [License](#license)
 
 
@@ -27,6 +29,7 @@
 - There is a circular buffer which allows to store the data while the Telnet connection is not established. So it's possible to collect data even when the WiFi and Telnet connections are not yet established.
 - It's also possible to create a Telnet session only if it is neccessary: then you will get the already collected data as far as it is still stored in the circular buffer. Data sent from Telnet terminal to ESP8266 / ESP32 will be handled as data received by serial port.
 - It is also possible to use more than one instance of TelnetSpy. For example - To send control information on the first instance and data dumps on the second instance.
+- Now a rudimentary implementation of the telnet NVT protocol (see RFC854) is included. You can use this functions in PuTTY via its menu "Special Command" i.e. for restarting the ESP.  
 
 ## 🚀 Usage <a name = "usage"></a>
 
@@ -61,11 +64,24 @@ LOG.handle();
 9. [void setStoreOffline()](#setStoreOffline)
 10. [bool getStoreOffline()](#getStoreOffline)
 11. [void setPingTime()](#setPingTime)
-12. [void setSerial()](#setSerial)
-14. [bool isClientConnected()](#isClientConnected)
-14. [void setCallbackOnConnect()](#setCallbackOnConnect)
-15. [void setCallbackOnDisconnect()](#setCallbackOnDisconnect)
-
+12. [bool setRecBufferSize()](#setRecBufferSize)
+13. [uint16_t getRecBufferSize()](#getRecBufferSize)
+14. [void setSerial()](#setSerial)
+15. [bool isClientConnected()](#isClientConnected)
+16. [void setCallbackOnConnect()](#setCallbackOnConnect)
+17. [void setCallbackOnDisconnect()](#setCallbackOnDisconnect)
+18. [void disconnectClient()](#disconnectClient)
+19. [void clearBuffer()](#clearBuffer)
+20. [void setFilter(char ch, char* msg, void (*callback())](#setFilter)
+21. [char getFilter()](#getFilter)
+22. [void setCallbackOnNvtBRK(void (*callback)())](#setCallbackOnNvtBRK)
+23. [void setCallbackOnNvtIP)(void (*callback)())](#setCallbackOnNvtIP)
+24. [void setCallbackOnNvtAO)(void (*callback)())](#setCallbackOnNvtAO)
+25. [void setCallbackOnNvtAYT)(void (*callback)())](#setCallbackOnNvtAYT)
+26. [void setCallbackOnNvtEC)(void (*callback)())](#setCallbackOnNvtEC)
+27. [void setCallbackOnNvtEL)(void (*callback)())](#setCallbackOnNvtEL)
+28. [void setCallbackOnNvtGA)(void (*callback)())](#setCallbackOnNvtGA)
+29. [void setCallbackOnNvtWWDD(void (*callback)(char command, char option))](#setCallbackOnNvtWWDD)
 ---
 
 ### 1. void setPort(uint16_t portToUse) <a name = "setPort"></a>
