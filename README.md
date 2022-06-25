@@ -54,8 +54,8 @@ LOG.handle();
 ### Use the following functions of the TelnetSpy object to modify behavior <a name = "functions"></a>
 
 1. [void setPort(uint16_t portToUse)](#setPort)
-2. [void setWelcomeMsg(char* msg)](#setWelcomeMsg)
-3. [void setRejectMsg(char* msg)](#setRejectMsg)
+2. [void setWelcomeMsg(const char* msg) / void setWelcomeMsg(const String& msg)](#setWelcomeMsg)
+3. [void setRejectMsg(const char* msg) / void setRejectMsg(const String& msg)](#setRejectMsg)
 4. [void setMinBlockSize(uint16_t minSize)](#setMinBlockSize)
 5. [void setCollectingTime(uint16_t colTime)](#setCollectingTime)
 6. [void setMaxBlockSize(uint16_t maxSize)](#setMaxBlockSize)
@@ -72,7 +72,7 @@ LOG.handle();
 17. [void setCallbackOnDisconnect(void (*callback)())](#setCallbackOnDisconnect)
 18. [void disconnectClient()](#disconnectClient)
 19. [void clearBuffer()](#clearBuffer)
-20. [void setFilter(char ch, char* msg, void (*callback())](#setFilter)
+20. [void setFilter(char ch, const char* msg, void (*callback()) / void setFilter(char ch, const String& msg, void (*callback())](#setFilter)
 21. [char getFilter()](#getFilter)
 22. [void setCallbackOnNvtBRK(void (*callback)())](#setCallbackOnNvtBRK)
 23. [void setCallbackOnNvtIP)(void (*callback)())](#setCallbackOnNvtIP)
@@ -94,24 +94,26 @@ Default: 23
 void setPort(uint16_t portToUse)
 ```
 
-### 2. void setWelcomeMsg(char* msg) <a name = "setWelcomeMsg"></a>
+### 2. void setWelcomeMsg(const char* msg) / void setWelcomeMsg(const String& msg) <a name = "setWelcomeMsg"></a>
 
 Change the message which will be sent to the Telnet client after a session is established.
 
 Default: "Connection established via TelnetSpy.\n"
 
 ```
-void setWelcomeMsg(char* msg)
+void setWelcomeMsg(const char* msg)
+void setWelcomeMsg(const String& msg)
 ```
 
-### 3. void setRejectMsg(char* msg) <a name = "setRejectMsg"></a>
+### 3. void setRejectMsg(const char* msg) / void setRejectMsg(const String& msg) <a name = "setRejectMsg"></a>
 
 Change the message which will be sent to the Telnet client if another session is already established.
 
 Default: "TelnetSpy: Only one connection possible.\n"
 
 ```
-void setRejectMsg(char* msg)
+void setRejectMsg(const char* msg)
+void setRejectMsg(const String& msg)
 ```
 
 ### 4. void setMinBlockSize(uint16_t minSize) <a name = "setMinBlockSize"></a>
@@ -146,7 +148,7 @@ void setMaxBlockSize(uint16_t maxSize)
 
 ### 7. bool setBufferSize(uint16_t newSize) <a name = "setBufferSize"></a>
 
-Change the size of the ring buffer. Set it to ```0``` to disable buffering. Changing size tries to preserve the already collected data. If the new buffer size is too small, only the latest data will be preserved. Returns ```false``` if the requested buffer size cannot be set.
+Change the size of the ring buffer. Set it to ```0``` to disable buffering. If buffering is disabled, the system's debug output (see setDebugOutput) cannot be send via telnet, it will be send to serial output only. Changing size tries to preserve the already collected data. If the new buffer size is too small, only the latest data will be preserved. Returns ```false``` if the requested buffer size cannot be set.
 
 Default: 3000
 
@@ -265,14 +267,15 @@ This function clears the transmit buffer of TelnetSpy, so all waiting data to se
 void clearBuffer()
 ```
 
-### 20. void setFilter(char ch, char* msg, void (*callback()) <a name = "setFilter"></a>
+### 20. void setFilter(char ch, const char* msg, void (*callback()) / void setFilter(char ch, const String& msg, void (*callback()) <a name = "setFilter"></a>
 
 This function allows to filter the character given by "ch" out of the receiving telnet data stream. If this character is detected, the following happens:
 - If a "msg" is given (not NULL), this message will be send back via the telnet connection.
 - If the "callback" is set (not NULL), the given function is called.    
 
 ```
-void setFilter(char ch, char* msg, void (*callback())
+void setFilter(char ch, const char* msg, void (*callback())
+void setFilter(char ch, const String& msg, void (*callback())
 ```
 
 ### 21. char getFilter() <a name = "getFilter"></a>
