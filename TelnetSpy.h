@@ -46,12 +46,14 @@
  * Change the message which will be send to the telnet client after a session
  * is established.
  * Default: "Connection established via TelnetSpy.\n"
- *		void setWelcomeMsg(char* msg);
+ *		void setWelcomeMsg(const char* msg);
+ *		void setWelcomeMsg(const String& msg);
  *
  * Change the message which will be send to the telnet client if another
  * session is already established.
  * Default: "TelnetSpy: Only one connection possible.\n"
- *		void setRejectMsg(char* msg);
+ *		void setRejectMsg(const char* msg);
+ *		void setRejectMsg(const String& msg);
  *
  * Change the amount of characters to collect before sending a telnet block.
  * Default: 64 
@@ -144,7 +146,8 @@
  *  - If a "msg" is given (not NULL), this message will be send back via the
  *      telnet connection.
  *  - If the "callback" is set (not NULL), the given function is called.
- *      void setFilter(char ch, char* msg, void (*callback());
+ *      void setFilter(char ch, const char* msg, void (*callback());
+ *      void setFilter(char ch, const String& msg, void (*callback());
  *
  * This function returns the actual filter character (0 => not set).
  *      char getFilter();
