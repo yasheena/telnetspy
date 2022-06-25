@@ -3,7 +3,7 @@
  * Cloning the serial port via Telnet.
  *
  * Written by Wolfgang Mattis (arduino@wm0.eu).
- * Version 1.2 / June 23, 2022.
+ * Version 1.4 / June 25, 2022.
  * MIT license, all text above must be included in any redistribution.   
  */
 
@@ -46,12 +46,12 @@
  * Change the message which will be send to the telnet client after a session
  * is established.
  * Default: "Connection established via TelnetSpy.\n"
- *		void setWelcomeMsg(char* msg);    
+ *		void setWelcomeMsg(char* msg);
  *
  * Change the message which will be send to the telnet client if another
  * session is already established.
  * Default: "TelnetSpy: Only one connection possible.\n"
- *		void setRejectMsg(char* msg);    
+ *		void setRejectMsg(char* msg);
  *
  * Change the amount of characters to collect before sending a telnet block.
  * Default: 64 
@@ -67,6 +67,8 @@
  *		void setMaxBlockSize(uint16_t maxSize);
  *
  * Change the size of the transmit buffer. Set it to 0 to disable buffering.
+ * If buffering is disabled, the system's debug output (see setDebugOutput)
+ * cannot be send via telnet, it will be send to serial output only.
  * Changing size tries to preserve the already collected data. If the new
  * buffer size is too small the youngest data will be preserved only. Returns
  * false if the requested buffer size cannot be set.
@@ -274,8 +276,10 @@ class TelnetSpy : public Stream {
 		~TelnetSpy();
 		void handle(void);
 		void setPort(uint16_t portToUse);
-		void setWelcomeMsg(char* msg);
-		void setRejectMsg(char* msg);
+		void setWelcomeMsg(const char* msg);
+		void setWelcomeMsg(const String& msg);
+		void setRejectMsg(const char* msg);
+		void setRejectMsg(const String& msg);
 		void setMinBlockSize(uint16_t minSize);
 		void setCollectingTime(uint16_t colTime);
 		void setMaxBlockSize(uint16_t maxSize);
@@ -292,7 +296,8 @@ class TelnetSpy : public Stream {
 		void setCallbackOnDisconnect(void (*callback)());
         void disconnectClient();
         void clearBuffer();
-        void setFilter(char ch, char* msg, void (*callback)());
+        void setFilter(char ch, const char* msg, void (*callback)());
+        void setFilter(char ch, const String& msg, void (*callback)());
         char getFilter();
 		void setCallbackOnNvtBRK(void (*callback)());
 		void setCallbackOnNvtIP(void (*callback)());
@@ -325,6 +330,7 @@ class TelnetSpy : public Stream {
 		int read(void) override;
 		int availableForWrite(void);
 		void flush(void) override;
+		void debugWrite(uint8_t);
 		size_t write(uint8_t) override;
 		inline size_t write(unsigned long n) { return write((uint8_t) n); }
 		inline size_t write(long n) { return write((uint8_t) n); }

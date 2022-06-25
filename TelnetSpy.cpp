@@ -3,7 +3,7 @@
  * Cloning the serial port via Telnet.
  *
  * Written by Wolfgang Mattis (arduino@wm0.eu).
- * Version 1.2 / June 23, 2022.
+ * Version 1.4 / June 25, 2022.
  * MIT license, all text above must be included in any redistribution.   
  */
 
@@ -26,8 +26,8 @@ static TelnetSpy* actualObject = NULL;
 
 
 static void TelnetSpy_putc(char c) {
-	if (actualObject) {
-  		actualObject->write(c);
+	if (NULL != actualObject) {
+  		actualObject->debugWrite(c);
 	}
 }
 
@@ -115,18 +115,32 @@ void TelnetSpy::setPort(uint16_t portToUse) {
 	}
 }
 
-void TelnetSpy::setWelcomeMsg(char* msg) {
+void TelnetSpy::setWelcomeMsg(const char* msg) {
 	if (welcomeMsg) {
 		free(welcomeMsg);
 	}
 	welcomeMsg = strdup(msg);
 }
 
-void TelnetSpy::setRejectMsg(char* msg) {
+void TelnetSpy::setWelcomeMsg(const String& msg) {
+	if (welcomeMsg) {
+		free(welcomeMsg);
+	}
+	welcomeMsg = strdup(msg.c_str());
+}
+
+void TelnetSpy::setRejectMsg(const char* msg) {
 	if (rejectMsg) {
 		free(rejectMsg);
 	}
 	rejectMsg = strdup(msg);
+}
+
+void TelnetSpy::setRejectMsg(const String& msg) {
+	if (rejectMsg) {
+		free(rejectMsg);
+	}
+	rejectMsg = strdup(msg.c_str());
 }
 
 void TelnetSpy::setMinBlockSize(uint16_t minSize) {
@@ -305,7 +319,32 @@ size_t TelnetSpy::write (uint8_t data) {
 	}
 	return 1;
 }
-    
+
+void TelnetSpy::debugWrite (uint8_t data) {
+	if (telnetBuf) {
+		if (storeOffline || client.connected()) {
+			if (bufUsed == bufLen) {
+				char c;
+				while (bufUsed > 0) {
+					c = pullTelnetBuf();
+					if (c == '\n') {
+						break;
+					}
+				}
+				if (peekTelnetBuf() == '\r') {
+					pullTelnetBuf();
+				}
+			}
+			addTelnetBuf(data);
+		}
+	}
+#ifdef ESP8266
+    ets_putc(data);
+#else
+    ets_write_char_uart(data);
+#endif
+}
+
 int TelnetSpy::available (void) {
 	if (usedSer) {
 		int avail = usedSer->available();
@@ -320,7 +359,7 @@ int TelnetSpy::available (void) {
 }
 
 int TelnetSpy::read (void) {
-	int val;
+	int val = -1;
 	if (usedSer) {
 		val = usedSer->read();
 		if (val != -1) {
@@ -385,6 +424,7 @@ void TelnetSpy::begin(unsigned long baud, SerialConfig config, SerialMode mode, 
 	if (usedSer) {
 		usedSer->begin(baud, config, mode, tx_pin);
 	}
+    setDebugOutput(debugOutput);
 	started = true;
 }
 
@@ -394,6 +434,7 @@ void TelnetSpy::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t 
 	if (usedSer) {
 		usedSer->begin(baud, config, rxPin, txPin, invert);
 	}
+    setDebugOutput(debugOutput);
 	started = true;
 }
 
@@ -611,12 +652,21 @@ void TelnetSpy::clearBuffer() {
 	bufWrIdx = 0;
 }
 
-void TelnetSpy::setFilter(char ch, char* msg, void (*callback)()) {
+void TelnetSpy::setFilter(char ch, const char* msg, void (*callback)()) {
     filterChar = ch;
     if (filterMsg) {
         free(filterMsg);
     }
     filterMsg = strdup(msg);
+    filterCallback = callback;
+}
+
+void TelnetSpy::setFilter(char ch, const String& msg, void (*callback)()) {
+    filterChar = ch;
+    if (filterMsg) {
+        free(filterMsg);
+    }
+    filterMsg = strdup(msg.c_str());
     filterCallback = callback;
 }
 

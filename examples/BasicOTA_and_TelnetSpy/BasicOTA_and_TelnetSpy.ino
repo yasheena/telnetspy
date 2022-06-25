@@ -14,31 +14,31 @@ const char* password = "yourPassword";
 
 TelnetSpy SerialAndTelnet;
 
-//#define SERIAL  Serial
-#define SERIAL  SerialAndTelnet
+//#define SER  Serial
+#define SER  SerialAndTelnet
 
 void waitForConnection() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    SERIAL.print(".");
+    SER.print(".");
   }
-  SERIAL.println(" Connected!");
+  SER.println(F(" Connected!"));
 }
 
 void waitForDisconnection() {
   while (WiFi.status() == WL_CONNECTED) {
     delay(500);
-    SERIAL.print(".");
+    SER.print(".");
   }
-  SERIAL.println(" Disconnected!");
+  SER.println(F(" Disconnected!"));
 }
 
 void telnetConnected() {
-  SERIAL.println("Telnet connection established.");
+  SER.println(F("Telnet connection established."));
 }
 
 void telnetDisconnected() {
-  SERIAL.println("Telnet connection closed.");
+  SER.println(F("Telnet connection closed."));
 }
 
 void disconnectClientWrapper() {
@@ -46,14 +46,14 @@ void disconnectClientWrapper() {
 }
 
 void setup() {
-  SerialAndTelnet.setWelcomeMsg("Welcome to the TelnetSpy example\r\n\n");
+  SerialAndTelnet.setWelcomeMsg(F("Welcome to the TelnetSpy example\r\n\n"));
   SerialAndTelnet.setCallbackOnConnect(telnetConnected);
   SerialAndTelnet.setCallbackOnDisconnect(telnetDisconnected);
-  SerialAndTelnet.setFilter(char(1), "\r\nNVT command: AO\r\n", disconnectClientWrapper);
-  SERIAL.begin(115200);
+  SerialAndTelnet.setFilter(char(1), F("\r\nNVT command: AO\r\n"), disconnectClientWrapper);
+  SER.begin(115200);
   delay(100); // Wait for serial port
-  SERIAL.setDebugOutput(false);
-  SERIAL.print("\r\n\nConnecting to WiFi ");
+//  SER.setDebugOutput(false);
+  SER.print(F("\r\n\nConnecting to WiFi "));
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   waitForConnection();
@@ -62,70 +62,70 @@ void setup() {
   // So the operations of ArduinoOTA cannot be seen via telnet.
   // So we only use the standard "Serial" for logging.
   ArduinoOTA.onStart([]() {
-    Serial.println("Start");
+    Serial.println(F("Start"));
   });
   ArduinoOTA.onEnd([]() {
-    Serial.println(" \r\nEnd");
+    Serial.println(F(" \r\nEnd"));
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    if (error == OTA_AUTH_ERROR) Serial.println(F("Auth Failed"));
+    else if (error == OTA_BEGIN_ERROR) Serial.println(F("Begin Failed"));
+    else if (error == OTA_CONNECT_ERROR) Serial.println(F("Connect Failed"));
+    else if (error == OTA_RECEIVE_ERROR) Serial.println(F("Receive Failed"));
+    else if (error == OTA_END_ERROR) Serial.println(F("End Failed"));
   });
   ArduinoOTA.begin();
   
-  SERIAL.println("Ready");
-  SERIAL.print("IP address: ");
-  SERIAL.println(WiFi.localIP());
+  SER.println(F("Ready"));
+  SER.print(F("IP address: "));
+  SER.println(WiFi.localIP());
   
-  SERIAL.println("\r\nType 'C' for WiFi connect.\r\nType 'D' for WiFi disconnect.\r\nType 'R' for WiFi reconnect.");
-  SERIAL.println("Type 'X' or Ctrl-A for closing telnet session.\r\n");
-  SERIAL.println("All other chars will be echoed. Play around...\r\n");
-  SERIAL.println("The following 'Special Commands' (telnet NVT protocol) are supported:");
-  SERIAL.println("  - Abort Output (AO) => closing telnet session.");
-  SERIAL.println("  - Interrupt Process (IP) => restart the ESP.\r\n");
+  SER.println(F("\r\nType 'C' for WiFi connect.\r\nType 'D' for WiFi disconnect.\r\nType 'R' for WiFi reconnect."));
+  SER.println(F("Type 'X' or Ctrl-A for closing telnet session.\r\n"));
+  SER.println(F("All other chars will be echoed. Play around...\r\n"));
+  SER.println(F("The following 'Special Commands' (telnet NVT protocol) are supported:"));
+  SER.println(F("  - Abort Output (AO) => closing telnet session."));
+  SER.println(F("  - Interrupt Process (IP) => restart the ESP.\r\n"));
 }
 
 void loop() {
   SerialAndTelnet.handle();
   ArduinoOTA.handle();
 
-  if (SERIAL.available() > 0) {
-    char c = SERIAL.read();
+  if (SER.available() > 0) {
+    char c = SER.read();
     switch (c) {
       case '\r':
-        SERIAL.println();
+        SER.println();
         break;
       case '\n':
         break;
       case 'C':
-        SERIAL.print("\r\nConnecting ");
+        SER.print(F("\r\nConnecting "));
         WiFi.begin(ssid, password);
         waitForConnection();
         break;
       case 'D':
-        SERIAL.print("\r\nDisconnecting ...");
+        SER.print(F("\r\nDisconnecting ..."));
         WiFi.disconnect();
         waitForDisconnection();
         break;
       case 'R':
-        SERIAL.print("\r\nReconnecting ");
+        SER.print(F("\r\nReconnecting "));
         WiFi.reconnect();
         waitForDisconnection();
         waitForConnection();
         break;
       case 'X':
-        SERIAL.println("\r\nClosing telnet session...");
-        SERIAL.disconnectClient();
+        SER.println(F("\r\nClosing telnet session..."));
+        SerialAndTelnet.disconnectClient();
         break;
       default:
-        SERIAL.print(c);
+        SER.print(c);
         break;
     }
   }
