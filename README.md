@@ -54,8 +54,10 @@ LOG.handle();
 ### Use the following functions of the TelnetSpy object to modify behavior <a name = "functions"></a>
 
 1. [void setPort(uint16_t portToUse)](#setPort)
-2. [void setWelcomeMsg(const char* msg) / void setWelcomeMsg(const String& msg)](#setWelcomeMsg)
-3. [void setRejectMsg(const char* msg) / void setRejectMsg(const String& msg)](#setRejectMsg)
+2. [void setWelcomeMsg(const char* msg)
+void setWelcomeMsg(const String& msg)](#setWelcomeMsg)
+3. [void setRejectMsg(const char* msg)
+void setRejectMsg(const String& msg)](#setRejectMsg)
 4. [void setMinBlockSize(uint16_t minSize)](#setMinBlockSize)
 5. [void setCollectingTime(uint16_t colTime)](#setCollectingTime)
 6. [void setMaxBlockSize(uint16_t maxSize)](#setMaxBlockSize)
@@ -72,7 +74,8 @@ LOG.handle();
 17. [void setCallbackOnDisconnect(void (*callback)())](#setCallbackOnDisconnect)
 18. [void disconnectClient()](#disconnectClient)
 19. [void clearBuffer()](#clearBuffer)
-20. [void setFilter(char ch, const char* msg, void (*callback()) / void setFilter(char ch, const String& msg, void (*callback())](#setFilter)
+20. [void setFilter(char ch, const char* msg, void (*callback())
+void setFilter(char ch, const String& msg, void (*callback())](#setFilter)
 21. [char getFilter()](#getFilter)
 22. [void setCallbackOnNvtBRK(void (*callback)())](#setCallbackOnNvtBRK)
 23. [void setCallbackOnNvtIP)(void (*callback)())](#setCallbackOnNvtIP)
