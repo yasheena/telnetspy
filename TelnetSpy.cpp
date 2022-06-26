@@ -3,7 +3,7 @@
  * Cloning the serial port via Telnet.
  *
  * Written by Wolfgang Mattis (arduino@wm0.eu).
- * Version 1.4 / June 25, 2022.
+ * Version 1.41 / June 26, 2022.
  * MIT license, all text above must be included in any redistribution.   
  */
 
@@ -314,7 +314,7 @@ size_t TelnetSpy::write (uint8_t data) {
 			client.write(data);
 		}
 	}
-	if (usedSer) {
+	if ((NULL != usedSer) && *usedSer) {
 		return usedSer->write(data);
 	}
 	return 1;
