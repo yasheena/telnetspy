@@ -5,6 +5,15 @@
  * Written by Wolfgang Mattis (arduino@wm0.eu).
  * Version 1.41 / June 26, 2022.
  * MIT license, all text above must be included in any redistribution.   
+ * 
+ * Proposed Modifications 10 Sep 2022 by Ray Jones (ray@mrjones.id.au)
+ * Always perform full buffer recall upon a fresh telnet connection.
+ * Buffer left untainted by telnet pings.
+ * Much tider timeout handling, leveraging the inherent 
+ * behaviour of rollover by using signed compares after subtracting 
+ * two unsigned values.
+ *
+ * Proposals Marked using RLJ_SPY_MODS
  */
 
 #ifdef ESP8266
@@ -27,12 +36,16 @@ static TelnetSpy* actualObject = NULL;
 
 static void TelnetSpy_putc(char c) {
 	if (NULL != actualObject) {
-  		actualObject->debugWrite(c);
+		actualObject->debugWrite(c);
 	}
 }
 
 static void TelnetSpy_ignore_putc(char c) {;
 }
+
+#ifdef RLJ_SPY_MODS
+#define TELNETSPY_SERIALPORT Serial
+#endif
 
 TelnetSpy::TelnetSpy() {
 	port = TELNETSPY_PORT;
@@ -40,31 +53,41 @@ TelnetSpy::TelnetSpy() {
 	started = false;
 	listening = false;
 	firstMainLoop = true;
-	usedSer = &Serial;
+#ifdef RLJ_SPY_MODS
+	usedSer = &TELNETSPY_SERIALPORT;     // OTHER WORK: nifty SerialIntercept by hooking HardwareSerial - then you can collect other Arduino library messages!
+#else
+	usedSer = &Serial;     
+#endif
 	storeOffline = true;
 	connected = false;
 	callbackConnect = NULL;
 	callbackDisconnect = NULL;
-    callbackNvtBRK = NULL;
-    callbackNvtIP = (void(*)()) 1;  // 1 => use ESP.restart;
-    callbackNvtAO = (void(*)()) 1;  // 1 => use TelnetSpy.disconnectClient()
-    callbackNvtAYT = NULL;
-    callbackNvtEC = NULL;
-    callbackNvtEL = NULL;
-    callbackNvtGA = NULL;
-    callbackNvtWWDD = NULL;
+	callbackNvtBRK = NULL;
+	callbackNvtIP = (void(*)()) 1;  // 1 => use ESP.restart;
+	callbackNvtAO = (void(*)()) 1;  // 1 => use TelnetSpy.disconnectClient()
+	callbackNvtAYT = NULL;
+	callbackNvtEC = NULL;
+	callbackNvtEL = NULL;
+	callbackNvtGA = NULL;
+	callbackNvtWWDD = NULL;
 	welcomeMsg = strdup(TELNETSPY_WELCOME_MSG);
 	rejectMsg = strdup(TELNETSPY_REJECT_MSG);
-    filterChar = 0;
-    filterMsg = NULL;
-    filterCallback = NULL;
+	filterChar = 0;
+	filterMsg = NULL;
+	filterCallback = NULL;
 	minBlockSize = TELNETSPY_MIN_BLOCK_SIZE;
 	collectingTime = TELNETSPY_COLLECTING_TIME;
 	maxBlockSize = TELNETSPY_MAX_BLOCK_SIZE;
 	pingTime = TELNETSPY_PING_TIME;
+#ifdef RLJ_SPY_MODS
+	pingHoldoff = 0;
+	waitHoldoff = 0;
+	NVTidx = 0;
+#else
 	pingRef = 0xFFFFFFFF;
 	waitRef = 0xFFFFFFFF;
-    nvtDetected = false;
+#endif
+	nvtDetected = false;
 	telnetBuf = NULL;
 	bufLen = 0;
 	uint16_t size = TELNETSPY_BUFFER_LEN;
@@ -77,7 +100,7 @@ TelnetSpy::TelnetSpy() {
 	}
 	recBuf = NULL;
 	recLen = 0;
-    setRecBufferSize(TELNETSPY_REC_BUFFER_LEN);
+	setRecBufferSize(TELNETSPY_REC_BUFFER_LEN);
 	debugOutput = TELNETSPY_CAPTURE_OS_PRINT;
 	if (debugOutput) {
 		setDebugOutput(true);
@@ -88,7 +111,7 @@ TelnetSpy::~TelnetSpy() {
 	end();
 	if (welcomeMsg) free(welcomeMsg);
 	if (rejectMsg) free(rejectMsg);
-    if (filterMsg) free(filterMsg);
+	if (filterMsg) free(filterMsg);
 	if (telnetBuf) free(telnetBuf);
 	if (recBuf) free(recBuf);
 }
@@ -97,7 +120,7 @@ void TelnetSpy::setPort(uint16_t portToUse) {
 	port = portToUse;
 	if (listening) {
 		if (client.connected()) {
-            sendBlock();
+			sendBlock();
 			client.flush();
 			client.stop();
 		}
@@ -146,7 +169,7 @@ void TelnetSpy::setRejectMsg(const String& msg) {
 void TelnetSpy::setMinBlockSize(uint16_t minSize) {
 	minBlockSize = min(max((uint16_t) 1, minSize), maxBlockSize);
 }
-    
+
 void TelnetSpy::setCollectingTime(uint16_t colTime) {
 	collectingTime = colTime;
 }
@@ -213,6 +236,9 @@ bool TelnetSpy::setBufferSize(uint16_t newSize) {
 			}
 		}
 	}
+#ifdef RLJ_SPY_MODS
+	bufLeftToSend = bufUsed;
+#endif
 	char* temp = (char*) realloc(telnetBuf, bufLen);
 	if (!temp) {
 		return false;
@@ -246,11 +272,17 @@ bool TelnetSpy::getStoreOffline() {
 
 void TelnetSpy::setPingTime(uint16_t pngTime) {
 	pingTime = pngTime;
+#ifdef RLJ_SPY_MODS
+	if (pingTime != 0) {
+		setHoldoff(pingHoldoff, pingTime);
+	}
+#else
 	if (pingTime == 0) {
 		pingRef = 0xFFFFFFFF;
 	} else {
 		pingRef = (millis() & 0x7FFFFFF) + pingTime;
 	}
+#endif
 }
 
 bool TelnetSpy::setRecBufferSize(uint16_t newSize) {
@@ -260,7 +292,7 @@ bool TelnetSpy::setRecBufferSize(uint16_t newSize) {
 	if (recBuf) {
 		free(recBuf);
 		recBuf = NULL;
-        recLen = 0;
+		recLen = 0;
 	}
 	if (newSize == 0) {
 		return true;
@@ -268,8 +300,8 @@ bool TelnetSpy::setRecBufferSize(uint16_t newSize) {
 	recBuf = (char*) malloc(newSize);
 	if (!recBuf) {
 		return false;
-    }
-    recLen = newSize;
+	}
+	recLen = newSize;
 	recRdIdx = 0;
 	recWrIdx = 0;
 	recUsed = 0;
@@ -290,11 +322,14 @@ void TelnetSpy::setSerial(HardwareSerial* usedSerial) {
 size_t TelnetSpy::write (uint8_t data) {
 	if (telnetBuf) {
 		if (storeOffline || client.connected()) {
-			if (bufUsed == bufLen) {
+			if (bufUsed == bufLen) {    // BUFFER IS FULL!
 				if (client.connected()) {
-					sendBlock();
+					sendBlock();            // try and send - but why? - does not change avaialble write space!
 				}
-				if (bufUsed == bufLen) {
+				if (bufUsed == bufLen) {    // buffer is 100% full, shed oldest line
+#ifdef RLJ_SPY_MODS				
+					removeOldestLine();
+#else
 					char c;
 					while (bufUsed > 0) {
 						c = pullTelnetBuf();
@@ -305,6 +340,7 @@ size_t TelnetSpy::write (uint8_t data) {
 					if (peekTelnetBuf() == '\r') {
 						pullTelnetBuf();
 					}
+#endif
 				}
 			}
 			addTelnetBuf(data);
@@ -324,6 +360,9 @@ void TelnetSpy::debugWrite (uint8_t data) {
 	if (telnetBuf) {
 		if (storeOffline || client.connected()) {
 			if (bufUsed == bufLen) {
+#ifdef RLJ_SPY_MODS
+				removeOldestLine();
+#else
 				char c;
 				while (bufUsed > 0) {
 					c = pullTelnetBuf();
@@ -334,14 +373,15 @@ void TelnetSpy::debugWrite (uint8_t data) {
 				if (peekTelnetBuf() == '\r') {
 					pullTelnetBuf();
 				}
+#endif
 			}
 			addTelnetBuf(data);
 		}
 	}
 #ifdef ESP8266
-    ets_putc(data);
+	ets_putc(data);
 #else
-    ets_write_char_uart(data);
+	ets_write_char_uart(data);
 #endif
 }
 
@@ -368,21 +408,21 @@ int TelnetSpy::read (void) {
 	}
 	if (client.connected()) {
 		if (telnetAvailable()) {
-            if (recBuf) {
-                if (recUsed == 0) {
-                    val = -1;
-                } else {
+			if (recBuf) {
+				if (recUsed == 0) {
+					val = -1;
+				} else {
 CRITCAL_SECTION_START
-                    val = recBuf[recRdIdx++];
-	                if (recRdIdx >= recLen) {
-		                recRdIdx = 0;
-	                }
-	                recUsed--;
+					val = recBuf[recRdIdx++];
+					if (recRdIdx >= recLen) {
+						recRdIdx = 0;
+					}
+					recUsed--;
 CRITCAL_SECTION_END
-                }
-            } else {
-			    val = client.read();
-            }
+				}
+			} else {
+				val = client.read();
+			}
 		}
 	}
 	return val;
@@ -398,11 +438,11 @@ int TelnetSpy::peek (void) {
 	}
 	if (client.connected()) {
 		if (telnetAvailable()) {
-            if (recBuf) {
-                val = recBuf[recRdIdx];
-            } else {
-			    val = client.peek();
-            }
+			if (recBuf) {
+				val = recBuf[recRdIdx];
+			} else {
+				val = client.peek();
+			}
 		}
 	}
 	return val;
@@ -413,9 +453,9 @@ void TelnetSpy::flush (void) {
 		usedSer->flush();
 	}
 	if (client.connected()) {
-        sendBlock();
-        client.flush();
-    }
+		sendBlock();
+		client.flush();
+	}
 }
 
 #ifdef ESP8266
@@ -424,7 +464,7 @@ void TelnetSpy::begin(unsigned long baud, SerialConfig config, SerialMode mode, 
 	if (usedSer) {
 		usedSer->begin(baud, config, mode, tx_pin);
 	}
-    setDebugOutput(debugOutput);
+	setDebugOutput(debugOutput);
 	started = true;
 }
 
@@ -434,7 +474,7 @@ void TelnetSpy::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t 
 	if (usedSer) {
 		usedSer->begin(baud, config, rxPin, txPin, invert);
 	}
-    setDebugOutput(debugOutput);
+	setDebugOutput(debugOutput);
 	started = true;
 }
 
@@ -448,7 +488,7 @@ void TelnetSpy::end() {
 		usedSer->end();
 	}
 	if (client.connected()) {
-        sendBlock();
+		sendBlock();
 		client.flush();
 		client.stop();
 	}
@@ -500,6 +540,11 @@ bool TelnetSpy::isRxEnabled(void) {
 #endif
 
 int TelnetSpy::availableForWrite(void) {
+#ifdef RLJ_SPY_MODS	
+	if(NVTidx) {
+		return NVTidx;
+	}
+#endif
 	if (usedSer) {
 		return min(usedSer->availableForWrite(), bufLen - bufUsed);
 	}
@@ -539,6 +584,51 @@ uint32_t TelnetSpy::baudRate(void) {
 	return 115200;
 }
 
+#ifdef RLJ_SPY_MODS
+void TelnetSpy::sendBlock() {
+	bool action = false;
+CRITCAL_SECTION_START
+	uint16_t idx = NVTidx;   // avoid tainting telnet buffer with pings
+	uint8_t NVTcpy[2] = {NVT[0], NVT[1] };
+	NVTidx = 0;
+CRITCAL_SECTION_END
+	if(idx) {   // typ. telnet NOP being sent out of bounds
+		client.write(&NVTcpy[--idx], 1);
+		if(idx) {
+			client.write(&NVTcpy[--idx], 1);
+		}
+		action = true;
+	}
+CRITCAL_SECTION_START
+	uint16_t len = bufLeftToSend;
+	if (len > maxBlockSize) {
+		len = maxBlockSize;
+	}
+	len = min(len, (uint16_t) (bufLen - bufRdIdx));  // in case we approaching the end of buffer memory (wraparound)
+	idx = bufRdIdx;
+CRITCAL_SECTION_END
+	if (len) {
+#ifdef DEBUG_TENETSPY
+		TELNETSPY_SERIALPORT.printf("TelnetSpy:%d %d %d %d %d %d\r\n", bufRdIdxStart, len, bufLeftToSend, bufRdIdx, bufUsed, bufLen);  // DEBUG directly to serial port, always
+#endif
+		action = true;
+		client.write(&telnetBuf[idx], len);
+CRITCAL_SECTION_START
+		bufRdIdx += len;
+		if (bufRdIdx >= bufLen) {
+			bufRdIdx -= bufLen;   // BUG FIX? was =0, nah len should be constrained, but still .....
+		}
+		bufLeftToSend -= len;
+CRITCAL_SECTION_END
+	}
+
+	if(action) {
+		setHoldoff(waitHoldoff, collectingTime);
+		if(pingTime!=0 && !isHoldoff(pingHoldoff))
+		  setHoldoff(pingHoldoff, pingTime);
+	}
+}
+#else
 void TelnetSpy::sendBlock() {
 CRITCAL_SECTION_START
 	uint16_t len = bufUsed;
@@ -548,9 +638,9 @@ CRITCAL_SECTION_START
 	len = min(len, (uint16_t) (bufLen - bufRdIdx));
 	uint16_t idx = bufRdIdx;
 CRITCAL_SECTION_END
-    if (len == 0) {
-        return;
-    }
+	if (len == 0) {
+		return;
+	}
 	client.write(&telnetBuf[idx], len);
 CRITCAL_SECTION_START
 	bufRdIdx += len;
@@ -571,12 +661,26 @@ CRITCAL_SECTION_END
 		}
 	}
 }
+#endif
 
 void TelnetSpy::addTelnetBuf(char c) {
+#ifdef RLJ_SPY_MODS	
+CRITCAL_SECTION_START
+	if (bufUsed == bufLen) {
+		removeOldestLine();   // get rid of oldest line in the buffer, reducing bufUsed in the process
+	} 
+	telnetBuf[bufWrIdx++] = c;
+	if (bufWrIdx >= bufLen) {
+		bufWrIdx = 0;
+	}
+	bufUsed++;
+	bufLeftToSend++;
+CRITCAL_SECTION_END
+#else
 CRITCAL_SECTION_START
 	telnetBuf[bufWrIdx] = c;
 	if (bufUsed == bufLen) {
-		bufRdIdx++;
+		bufRdIdx++;                    // TRYING TO UNDERSTAND PURPOSE, should we not make space?
 		if (bufRdIdx >= bufLen) {
 			bufRdIdx = 0;
 		}
@@ -588,6 +692,21 @@ CRITCAL_SECTION_START
 		bufWrIdx = 0;
 	}
 CRITCAL_SECTION_END
+#endif
+}
+
+void TelnetSpy::removeOldestLine()
+{
+	char c;
+	while (bufUsed > 0) {  // only if buffer has data
+		c = pullTelnetBuf(); // get oldest character in buffer
+		if (c == '\n') {     // stop once we have removed a line feed
+			break;
+		}
+	}
+	if (peekTelnetBuf() == '\r') {
+		pullTelnetBuf();     // remove a possible CR (not normal, should be CR/LF usually!)
+	}
 }
 
 char TelnetSpy::pullTelnetBuf() {
@@ -595,11 +714,18 @@ char TelnetSpy::pullTelnetBuf() {
 		return 0;
 	}
 CRITCAL_SECTION_START
+#ifdef RLJ_SPY_MODS
+	char c = telnetBuf[bufRdIdxStart++];   // obtain OLDEST character in the buffer and increment tail position (oldest data)
+	if (bufRdIdxStart >= bufLen) {
+		bufRdIdxStart = 0;
+	}
+#else
 	char c = telnetBuf[bufRdIdx++]; 
 	if (bufRdIdx >= bufLen) {
 		bufRdIdx = 0;
 	}
-	bufUsed--;
+#endif
+	bufUsed--;                             // decrement number of active bytes
 CRITCAL_SECTION_END
 	return c;
 }
@@ -609,16 +735,20 @@ char TelnetSpy::peekTelnetBuf() {
 		return 0;
 	}
 CRITCAL_SECTION_START
-    char c = telnetBuf[bufRdIdx];
+#ifdef RLJ_SPY_MODS
+	char c = telnetBuf[bufRdIdxStart];
+#else
+	char c = telnetBuf[bufRdIdx]; 
+#endif
 CRITCAL_SECTION_END
-    return c;
+	return c;
 }
 
 int TelnetSpy::telnetAvailable() {
-    checkReceive();
-    if (recBuf) {
-        return recUsed;
-    }
+	checkReceive();
+	if (recBuf) {
+		return recUsed;
+	}
 	return client.available();
 }
 
@@ -635,43 +765,46 @@ void TelnetSpy::setCallbackOnDisconnect(void (*callback)()) {
 }
 
 void TelnetSpy::disconnectClient() {
-    if (client.connected()) {
-        sendBlock();
-        client.flush();
-        client.stop();
-    }
-    if (connected && (callbackDisconnect != NULL)) {
-        callbackDisconnect();
-    }
-    connected = false;
+	if (client.connected()) {
+		sendBlock();
+		client.flush();
+		client.stop();
+	}
+	if (connected && (callbackDisconnect != NULL)) {
+		callbackDisconnect();
+	}
+	connected = false;
 }
 
 void TelnetSpy::clearBuffer() {
 	bufUsed = 0;
 	bufRdIdx = 0;
 	bufWrIdx = 0;
+#ifdef RLJ_SPY_MODS
+	bufRdIdxStart = 0;
+#endif
 }
 
 void TelnetSpy::setFilter(char ch, const char* msg, void (*callback)()) {
-    filterChar = ch;
-    if (filterMsg) {
-        free(filterMsg);
-    }
-    filterMsg = strdup(msg);
-    filterCallback = callback;
+	filterChar = ch;
+	if (filterMsg) {
+		free(filterMsg);
+	}
+	filterMsg = strdup(msg);
+	filterCallback = callback;
 }
 
 void TelnetSpy::setFilter(char ch, const String& msg, void (*callback)()) {
-    filterChar = ch;
-    if (filterMsg) {
-        free(filterMsg);
-    }
-    filterMsg = strdup(msg.c_str());
-    filterCallback = callback;
+	filterChar = ch;
+	if (filterMsg) {
+		free(filterMsg);
+	}
+	filterMsg = strdup(msg.c_str());
+	filterCallback = callback;
 }
 
 char TelnetSpy::getFilter() {
-    return filterChar;
+	return filterChar;
 }
 
 void TelnetSpy::setCallbackOnNvtBRK(void (*callback)()) {
@@ -709,7 +842,7 @@ void TelnetSpy::setCallbackOnNvtWWDD(void (*callback)(char command, char option)
 void TelnetSpy::handle() {
 	if (firstMainLoop) {
 		firstMainLoop = false;
-    	// Between setup() and loop() the configuration for os_print may be changed so it must be renewed
+		// Between setup() and loop() the configuration for os_print may be changed so it must be renewed
 		if (debugOutput && (actualObject == this)) {
 			setDebugOutput(true);
 		}
@@ -718,54 +851,119 @@ void TelnetSpy::handle() {
 		return;
 	}
 	if (!listening) {
-        switch (WiFi.getMode()) {
-            case WIFI_MODE_STA:
-                if (WiFi.status() != WL_CONNECTED) {
-                    return;
-                }
-                break;
-            case WIFI_MODE_AP:
-            case WIFI_MODE_APSTA:
-                break;
-            default:
-                return;
-        }
+		switch (WiFi.getMode()) {
+			case WIFI_MODE_STA:
+				if (WiFi.status() != WL_CONNECTED) {
+					return;
+				}
+				break;
+			case WIFI_MODE_AP:
+			case WIFI_MODE_APSTA:
+				break;
+			default:
+				return;
+		}
 		telnetServer = new WiFiServer(port);
 		telnetServer->begin();
 		telnetServer->setNoDelay(bufLen > 0);
 		listening = true;
 	}
-    if (telnetServer->hasClient()) {
-        if (client.connected()) {
-            WiFiClient rejectClient = telnetServer->available();
+	if (telnetServer->hasClient()) {
+		if (client.connected()) {
+			WiFiClient rejectClient = telnetServer->available();
 			if (strlen(rejectMsg) > 0) {
 				rejectClient.write((const uint8_t*) rejectMsg, strlen(rejectMsg));
 			}
 			rejectClient.flush();
-            rejectClient.stop();
-        } else {
-            client = telnetServer->available();
+			rejectClient.stop();
+		} else {
+			client = telnetServer->available();
 			if (strlen(welcomeMsg) > 0) {
 				client.write((const uint8_t*) welcomeMsg, strlen(welcomeMsg));
 			}
-        }
-    }
-    if (client.connected()) {
-    	if (!connected) {
-    		connected = true;
-    		if (pingTime != 0) {
-    			pingRef = (millis() & 0x7FFFFFF) + pingTime;
-    		}
+#ifdef RLJ_SPY_MODS
+			// reset bufRdIdx to replay as much as we hold
+CRITCAL_SECTION_START
+			bufRdIdx = bufRdIdxStart;
+			bufLeftToSend = bufUsed;
+CRITCAL_SECTION_END
+
+#endif
+		}
+	}
+	
+#ifdef RLJ_SPY_MODS
+	if (client.connected()) {
+		if (!connected) {
+			connected = true;
+			if(pingTime != 0) {
+				setHoldoff(pingHoldoff, pingTime);
+			}
 			if (callbackConnect != NULL) {
 				callbackConnect();
 			}
 		}
 	} else {
-    	if (connected) {
-    		connected = false;
-            sendBlock();
-        	client.flush();
-            client.stop();
+		if (connected) {
+			connected = false;
+			sendBlock();
+			client.flush();
+			client.stop();
+			pingHoldoff = 0;
+			setHoldoff(waitHoldoff, collectingTime);
+			if (callbackDisconnect != NULL) {
+				callbackDisconnect();
+			}
+		}
+	}
+
+	if (client.connected() && (bufLeftToSend > 0)) {
+		if (bufLeftToSend >= minBlockSize) {
+			sendBlock();
+		} else {
+			if(!isHoldoff(waitHoldoff)) {
+				sendBlock();
+				setHoldoff(waitHoldoff, collectingTime);
+			}
+		}
+	}
+
+	if (client.connected() && pingTime !=0 && !isHoldoff(pingHoldoff)) {
+CRITCAL_SECTION_START
+		// avoid tainting telnet buffer with pings, use extra OOB buffer
+		if (nvtDetected) {
+			// Send a NOP via telnet NVT protocol (out of bounds)
+			NVT[0] = 241;
+			NVT[1] = 255;
+			NVTidx = 2;
+		} else  {
+			// Send a NULL
+			NVT[0] = 0;
+			NVTidx = 1;
+		}
+CRITCAL_SECTION_END
+#ifdef DEBUG_TENETSPY
+		TELNETSPY_SERIALPORT.println("telnet NOP");  // DEBUG directly to serial port, always
+#endif
+		sendBlock();
+	}
+#else
+	if (client.connected()) {
+		if (!connected) {
+			connected = true;
+			if (pingTime != 0) {
+				pingRef = (millis() & 0x7FFFFFF) + pingTime;
+			}
+			if (callbackConnect != NULL) {
+				callbackConnect();
+			}
+		}
+	} else {
+		if (connected) {
+			connected = false;
+			sendBlock();
+			client.flush();
+			client.stop();
 			pingRef = 0xFFFFFFFF;
 			waitRef = 0xFFFFFFFF;
 			if (callbackDisconnect != NULL) {
@@ -794,26 +992,27 @@ void TelnetSpy::handle() {
 	if (client.connected() && (pingRef != 0xFFFFFFFF)) {
 		unsigned long m = millis() & 0x7FFFFFF;
 		if (!((pingRef < 0x20000000) && (m > 0x60000000)) && (m >= pingRef)) {
-            if (nvtDetected) {
-                // Send a NOP via telnet NVT protocol
-			    addTelnetBuf(255);
-			    addTelnetBuf(241);
-            } else  {
-                // Send a NULL
-			    addTelnetBuf(0);
-            }
+			if (nvtDetected) {
+				// Send a NOP via telnet NVT protocol 
+				addTelnetBuf(255);
+				addTelnetBuf(241);
+			} else  {
+				// Send a NULL
+				addTelnetBuf(0);
+			}
 			sendBlock();
 		}
 	}
-    if (client.connected()) {
-        checkReceive();
-    }
+#endif
+	if (client.connected()) {
+		checkReceive();
+	}
 }
 
 void TelnetSpy::writeRecBuf(char c) {
-    if (recLen == recUsed) {
-        return;
-    }
+	if (recLen == recUsed) {
+		return;
+	}
 CRITCAL_SECTION_START
 	recBuf[recWrIdx++] = c;
 	if (recWrIdx >= recLen) {
@@ -826,127 +1025,148 @@ CRITCAL_SECTION_END
 void TelnetSpy::checkReceive() {
 	int n = client.available();
 	while (n > 0) {
-        char c, c2;
-        c = client.peek();
-        if (filterChar && (filterChar == c)) {
-            // Filter character detected
+		char c, c2;
+		c = client.peek();
+		if (filterChar && (filterChar == c)) {
+			// Filter character detected
 			if (strlen(filterMsg) > 0) {
 				client.write((const uint8_t*) filterMsg, strlen(filterMsg));
 			}
-   			client.read();  // Remove filter character
-            n--;
-            if (filterCallback != NULL) {
-                filterCallback();
-            }
-            continue;
-        }
-		if (255 == c) {  // If IAC (start of telnet NVT protocol telegram):
-            if (n == 1) {
-                // Telegram incomplete
-                return;
-            }
-   			client.read();  // Remove IAC
-            n--;
-            c = client.read();  // Gett command byte
-            n--;
-            switch (c) {
-                case 241:   // Telnet command "NOP" (no operation)
-              		if (pingTime != 0) {
-  		            	pingRef = (millis() & 0x7FFFFFF) + pingTime;
-  		            }
-                    break;
-                case 242:   // Telnet command "Data Mark" (not yet implemented)
-                    break;
-                case 243:   // Telnet command "Break";
-                    if (callbackNvtBRK != NULL) {
-                        callbackNvtBRK();
-                    }
-                    break;
-                case 244:   // Telnet command "Interrupt process"
-                    if (callbackNvtIP != NULL) {
-                        if ((void(*)()) 1 == callbackNvtIP) {
-                            ESP.restart();
-                        } else {
-                            callbackNvtIP();
-                        }
-                    }
-                    break;
-                case 245:   // Telnet command "Abort output"
-                    if (callbackNvtAO != NULL) {
-                        if ((void(*)()) 1 == callbackNvtAO) {
-                            disconnectClient();
-                        } else {
-                            callbackNvtAO();
-                        }
-                    }
-                    break;
-                case 246:   // Telnet command "Are you there"
-                    if (callbackNvtAYT != NULL) {
-                        callbackNvtAYT();
-                    }
-                    break;
-                case 247:   // Telnet command "Erase character"
-                    if (callbackNvtEC != NULL) {
-                        callbackNvtEC();
-                    }
-                    break;
-                case 248:   // Telnet command "Erase line"
-                    if (callbackNvtEL != NULL) {
-                        callbackNvtEL();
-                    }
-                    break;
-                case 249:   // Telnet command "Go ahead"
-                    if (callbackNvtGA != NULL) {
-                        callbackNvtGA();
-                    }
-                    break;
-                case 250:   // Telnet command "SB" (additional data follows)
-                    while (n > 0) {
-                        c = client.read();
-                        n--;
-                        if (255 != c) {
-                            // If not IAC, ignore it
-                            continue;
-                        }
-                        c = client.read();
-                        n--;
-                        if (240 != c) {
-                            // If not SE (end of additional data), ignore it
-                            continue;
-                        }
-                    }
-                    break;
-                case 251:   // Telnet command "WILL"
-                case 252:   // Telnet command "WON'T"
-                case 253:   // Telnet command "DO"
-                case 254:   // Telnet command "DON'T"
-                    nvtDetected = true;
-                    c2 = client.read();     // Get option byte
-                    n--;
-                    if (callbackNvtWWDD != NULL) {
-                        callbackNvtWWDD(c, c2);
-                    }
-                    break;
-                case 255:   // Escaped data byte 0xff
-                    if (recBuf) {
-                        writeRecBuf(c);
-                    } else {
-                        // If no receive buffer is used, the data byte 0xff will be lost.
-                        // May be in the future there is a solution for this problem.
-                    }
-                    break;
-            }
-            continue;
+			client.read();  // Remove filter character
+			n--;
+			if (filterCallback != NULL) {
+				filterCallback();
+			}
+			continue;
 		}
-        // Next character in the client buffer is a normal character
-        if (recBuf) {
-            client.read();
-            writeRecBuf(c);
-            n--;
-            continue;
-        }
-        // Leave the character in the client buffer
-        return;
+		if (255 == c) {  // If IAC (start of telnet NVT protocol telegram):
+			if (n == 1) {
+				// Telegram incomplete
+				return;
+			}
+			client.read();  // Remove IAC
+			n--;
+			c = client.read();  // Gett command byte
+			n--;
+			switch (c) {
+				case 241:   // Telnet command "NOP" (no operation)
+					if (pingTime != 0) {
+#ifdef RLJ_SPY_MODS
+						setHoldoff(pingHoldoff, pingTime);
+#else
+						pingRef = (millis() & 0x7FFFFFF) + pingTime;
+#endif			
+					}
+					break;
+				case 242:   // Telnet command "Data Mark" (not yet implemented)
+					break;
+				case 243:   // Telnet command "Break";
+					if (callbackNvtBRK != NULL) {
+						callbackNvtBRK();
+					}
+					break;
+				case 244:   // Telnet command "Interrupt process"
+					if (callbackNvtIP != NULL) {
+						if ((void(*)()) 1 == callbackNvtIP) {
+							ESP.restart();
+						} else {
+							callbackNvtIP();
+						}
+					}
+					break;
+				case 245:   // Telnet command "Abort output"
+					if (callbackNvtAO != NULL) {
+						if ((void(*)()) 1 == callbackNvtAO) {
+							disconnectClient();
+						} else {
+							callbackNvtAO();
+						}
+					}
+					break;
+				case 246:   // Telnet command "Are you there"
+					if (callbackNvtAYT != NULL) {
+						callbackNvtAYT();
+					}
+					break;
+				case 247:   // Telnet command "Erase character"
+					if (callbackNvtEC != NULL) {
+						callbackNvtEC();
+					}
+					break;
+				case 248:   // Telnet command "Erase line"
+					if (callbackNvtEL != NULL) {
+						callbackNvtEL();
+					}
+					break;
+				case 249:   // Telnet command "Go ahead"
+					if (callbackNvtGA != NULL) {
+						callbackNvtGA();
+					}
+					break;
+				case 250:   // Telnet command "SB" (additional data follows)
+					while (n > 0) {
+						c = client.read();
+						n--;
+						if (255 != c) {
+							// If not IAC, ignore it
+							continue;
+						}
+						c = client.read();
+						n--;
+						if (240 != c) {
+							// If not SE (end of additional data), ignore it
+							continue;
+						}
+					}
+					break;
+				case 251:   // Telnet command "WILL"
+				case 252:   // Telnet command "WON'T"
+				case 253:   // Telnet command "DO"
+				case 254:   // Telnet command "DON'T"
+					nvtDetected = true;
+					c2 = client.read();     // Get option byte
+					n--;
+					if (callbackNvtWWDD != NULL) {
+						callbackNvtWWDD(c, c2);
+					}
+					break;
+				case 255:   // Escaped data byte 0xff
+					if (recBuf) {
+						writeRecBuf(c);
+					} else {
+						// If no receive buffer is used, the data byte 0xff will be lost.
+						// May be in the future there is a solution for this problem.
+					}
+					break;
+			}
+			continue;
+		}
+		// Next character in the client buffer is a normal character
+		if (recBuf) {
+			client.read();
+			writeRecBuf(c);
+			n--;
+			continue;
+		}
+		// Leave the character in the client buffer
+		return;
 	}
 }
 
+#ifdef RLJ_SPY_MODS
+void TelnetSpy::setHoldoff(unsigned long& holdoff, unsigned long period)
+{
+	holdoff = millis() + period;   
+	if(holdoff == 0) holdoff++;    // a valid delay must avoid zero!
+}  
+
+bool TelnetSpy::isHoldoff(unsigned long& holdoff) 
+{
+	if(holdoff) {
+		long tDelta = millis() - holdoff;   // signed value performs as required for rollover in any situation
+		if(tDelta >= 0)
+			holdoff = 0;
+	}
+	return holdoff != 0;
+}
+#endif
