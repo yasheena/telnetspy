@@ -5,6 +5,15 @@
  * Written by Wolfgang Mattis (arduino@wm0.eu).
  * Version 1.4 / June 25, 2022.
  * MIT license, all text above must be included in any redistribution.   
+ * 
+ * Proposed Modifications 10 Sep 2022 by Ray Jones (ray@mrjones.id.au)
+ * Always perform full buffer recall upon a fresh telnet connection.
+ * Buffer left untainted by telnet pings.
+ * Much tider timeout handling, leveraging the inherent 
+ * behaviour of rollover when using signed compares after subtracting 
+ * two unsigned values.
+ *
+ * Proposals Marked using RLJ_SPY_MODS
  */
 
 /*
@@ -253,6 +262,10 @@
 #define TELNETSPY_REJECT_MSG "TelnetSpy: Only one connection possible.\r\n"
 #define TELNETSPY_REC_BUFFER_LEN 64
 
+#define RLJ_SPY_MODS
+//#define DEBUG_TENETSPY
+
+
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 // empty defines, so on ESP8266 nothing will be changed
@@ -297,11 +310,11 @@ class TelnetSpy : public Stream {
 		bool isClientConnected();
 		void setCallbackOnConnect(void (*callback)());
 		void setCallbackOnDisconnect(void (*callback)());
-        void disconnectClient();
-        void clearBuffer();
-        void setFilter(char ch, const char* msg, void (*callback)());
-        void setFilter(char ch, const String& msg, void (*callback)());
-        char getFilter();
+		void disconnectClient();
+		void clearBuffer();
+		void setFilter(char ch, const char* msg, void (*callback)());
+		void setFilter(char ch, const String& msg, void (*callback)());
+		char getFilter();
 		void setCallbackOnNvtBRK(void (*callback)());
 		void setCallbackOnNvtIP(void (*callback)());
 		void setCallbackOnNvtAO(void (*callback)());
@@ -351,8 +364,8 @@ class TelnetSpy : public Stream {
 		char pullTelnetBuf();
 		char peekTelnetBuf();
 		int telnetAvailable();
-        void writeRecBuf(char c);
-        void checkReceive();
+		void writeRecBuf(char c);
+		void checkReceive();
 		WiFiServer* telnetServer;
 		WiFiClient client;
 		uint16_t port;
@@ -361,15 +374,28 @@ class TelnetSpy : public Stream {
 		bool started;
 		bool listening;
 		bool firstMainLoop;
+#ifdef RLJ_SPY_MODS
+		void removeOldestLine(void);
+		void setHoldoff(unsigned long& holdoff, unsigned long period);
+		bool isHoldoff(unsigned long& holdoff);
+		unsigned long waitHoldoff;
+		unsigned long pingHoldoff;
+        // additions to allow FULL recall EVERY time telnet re-connects
+		uint16_t bufRdIdxStart;
+		uint16_t bufLeftToSend;
+		uint8_t  NVT[2];
+		uint8_t  NVTidx;
+#else
 		unsigned long waitRef;
 		unsigned long pingRef;
+#endif
 		uint16_t pingTime;
-        bool nvtDetected;
+		bool nvtDetected;
 		char* welcomeMsg;
 		char* rejectMsg;
-        char filterChar;
-        char* filterMsg;
-        void (*filterCallback)();
+		char filterChar;
+		char* filterMsg;
+		void (*filterCallback)();
 		uint16_t minBlockSize;
 		uint16_t collectingTime;
 		uint16_t maxBlockSize;
@@ -387,14 +413,14 @@ class TelnetSpy : public Stream {
 		bool connected;
 		void (*callbackConnect)();
 		void (*callbackDisconnect)();
-        void (*callbackNvtBRK)();
-        void (*callbackNvtIP)();
-        void (*callbackNvtAO)();
-        void (*callbackNvtAYT)();
-        void (*callbackNvtEC)();
-        void (*callbackNvtEL)();
-        void (*callbackNvtGA)();
-        void (*callbackNvtWWDD)(char command, char option);
+		void (*callbackNvtBRK)();
+		void (*callbackNvtIP)();
+		void (*callbackNvtAO)();
+		void (*callbackNvtAYT)();
+		void (*callbackNvtEC)();
+		void (*callbackNvtEL)();
+		void (*callbackNvtGA)();
+		void (*callbackNvtWWDD)(char command, char option);
 };
 
 #endif
