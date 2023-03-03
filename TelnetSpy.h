@@ -293,7 +293,11 @@ class TelnetSpy : public Stream {
 		void setPingTime(uint16_t pngTime);
 		bool setRecBufferSize(uint16_t newSize);
 		uint16_t getRecBufferSize();
+#if ARDUINO_USB_CDC_ON_BOOT
+		void setSerial(USBCDC* usedSerial);
+#else
 		void setSerial(HardwareSerial* usedSerial);
+#endif
 		bool isClientConnected();
 		void setCallbackOnConnect(void (*callback)());
 		void setCallbackOnDisconnect(void (*callback)());
@@ -356,7 +360,11 @@ class TelnetSpy : public Stream {
 		WiFiServer* telnetServer;
 		WiFiClient client;
 		uint16_t port;
+#if ARDUINO_USB_CDC_ON_BOOT
+		USBCDC* usedSer;
+#else
 		HardwareSerial* usedSer;
+#endif
 		bool storeOffline;
 		bool started;
 		bool listening;
