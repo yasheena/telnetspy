@@ -283,7 +283,12 @@ uint16_t TelnetSpy::getRecBufferSize() {
 	return recLen;
 }
 
+
+#if ARDUINO_USB_CDC_ON_BOOT
+void TelnetSpy::setSerial(USBCDC* usedSerial) {
+#else
 void TelnetSpy::setSerial(HardwareSerial* usedSerial) {
+#endif
 	usedSer = usedSerial;
 }
 
@@ -432,7 +437,11 @@ void TelnetSpy::begin(unsigned long baud, SerialConfig config, SerialMode mode, 
 
 void TelnetSpy::begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert) {
 	if (usedSer) {
+#if ARDUINO_USB_CDC_ON_BOOT
+		usedSer->begin(baud);
+#else
 		usedSer->begin(baud, config, rxPin, txPin, invert);
+#endif
 	}
     setDebugOutput(debugOutput);
 	started = true;
